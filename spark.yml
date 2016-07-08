@@ -1,0 +1,60 @@
+---
+- hosts: all
+  become: yes
+  user: vagrant
+  tasks:
+
+    - name: install language-pack
+      apt: name="{{ item }}"
+      environment:
+        DEBIAN_FRONTEND: "noninteractive"
+      with_items:
+        - "language-pack-ja"
+        - "language-pack-gnome-ja"
+        - "thunderbird-locale-ja"
+        - "fonts-takao"
+        - "ibus-anthy"
+        - "ibus-mozc"
+      register: install_language_pack
+
+    - name: update locale
+      command: update-locale LANG="ja_JP.UTF-8"
+      when: install_language_pack|changed
+
+    - name: update localtime
+      file: >
+        dest="/etc/localtime"
+        src="/usr/share/zoneinfo/Asia/Tokyo"
+        state=link
+        force=yes
+
+    - name: Add JRE ppa
+      become: yes
+      apt_repository: repo=ppa:webupd8team/java state=present
+
+    - name: Automatically select the Oracle License
+      become: yes
+      shell: echo debconf shared/accepted-oracle-license-v1-1 select true | sudo debconf-set-selections
+
+    - name: Install JRE
+      become: yes
+      apt: name=oracle-java8-installer state=latest update-cache=yes force=yes
+
+    - stat: path=/etc/apt/sources.list.d/mesosphere.list
+      register: mesosphere_ilst_file
+
+    - name: Add mesosphere repos
+      shell: apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv E56151BF;DISTRO=$(lsb_release -is | tr '[:upper:]' '[:lower:]');CODENAME=$(lsb_release -cs);echo "deb http://repos.mesosphere.com/${DISTRO} ${CODENAME} main" | sudo tee /etc/apt/sources.list.d/mesosphere.list
+      when: mesosphere_ilst_file.stat.exists == False
+
+    - name: Upgrade packages.
+      become: true
+      apt: upgrade=yes update_cache=yes
+
+    - name: apt-get install mesos
+      become: true
+      apt: name=mesos
+
+    - name: apt-get install docker
+      become: true
+      apt: name=docker
