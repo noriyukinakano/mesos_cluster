@@ -1,0 +1,4 @@
+- name: test
+  become: yes
+  user: vagrant
+  shell: rm -rf /tmp/test.txt
